@@ -40,10 +40,6 @@ public class MainActivity extends AppCompatActivity {
             try {
                 List<Book> list = bookManager.getBookList();
                 LogUtils.i(TAG, "Android_Test_Wjc onServiceConnected: list=" + list.toString());
-              /*  Book mNewBook = new Book(3, "python");
-                bookManager.addBook(mNewBook);
-                List<Book> newList = bookManager.getBookList();
-                LogUtils.i(TAG, "Android_Test_Wjc onServiceConnected: list2=" + newList.toString());*/
                 bookManager.registerListener(mIOnNewBookArrivedListener);
             } catch (RemoteException e) {
                 e.printStackTrace();
@@ -52,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-
+            LogUtils.i(TAG, "Android_Test_Wjc onServiceDisconnected: ");
         }
     };
 
@@ -69,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         if (bookManager != null && bookManager.asBinder().isBinderAlive()) {
             try {
+                LogUtils.i(TAG, "Android_Test_Wjc onDestroy: ");
                 bookManager.unregisterListener(mIOnNewBookArrivedListener);
             } catch (RemoteException e) {
                 e.printStackTrace();

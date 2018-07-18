@@ -4,6 +4,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.RemoteCallbackList;
 import android.os.RemoteException;
 import android.support.annotation.Nullable;
 
@@ -23,7 +24,9 @@ public class BookManagerService extends Service {
     private AtomicBoolean mIsServiceDestoryed = new AtomicBoolean(false);
 
     private CopyOnWriteArrayList<Book> mBooks = new CopyOnWriteArrayList<>();//支持并发读/写
-    private CopyOnWriteArrayList<IOnNewBookArrivedListener> mOnNewBookArrivedListeners = new CopyOnWriteArrayList<>();
+    // private CopyOnWriteArrayList<IOnNewBookArrivedListener> mOnNewBookArrivedListeners = new CopyOnWriteArrayList<>();
+    // [wjc on 18-7-18 下午9:58] delete 跨进程 listener interface
+    private RemoteCallbackList<IOnNewBookArrivedListener> mOnNewBookArrivedListeners = new RemoteCallbackList<>();
 
     private Binder mBinder = new IBookManager.Stub() {
         @Override
@@ -38,21 +41,20 @@ public class BookManagerService extends Service {
 
         @Override
         public void registerListener(IOnNewBookArrivedListener listener) throws RemoteException {
-            if (!mOnNewBookArrivedListeners.contains(listener)) {
-                mOnNewBookArrivedListeners.add(listener);
-            } else {
-                LogUtils.i(TAG, "Android_Test_Wjc registerListener: exists");
-            }
-            LogUtils.i(TAG, "Android_Test_Wjc registerListener: size=" + mOnNewBookArrivedListeners.size());
+            mOnNewBookArrivedListeners.register(listener);
+            // [wjc on 18-7-19 上午12:24] beginBroadcast()/finishBroadcast()---配对使用
+            int N = mOnNewBookArrivedListeners.beginBroadcast();
+            mOnNewBookArrivedListeners.finishBroadcast();
+            LogUtils.i(TAG, "Android_Test_Wjc register Listener: N=" + N);
+            LogUtils.i(TAG, "Android_Test_Wjc onCreate: currentThread=" + Thread.currentThread());
         }
 
         @Override
         public void unregisterListener(IOnNewBookArrivedListener listener) throws RemoteException {
-            if (mOnNewBookArrivedListeners.contains(listener)) {
-                mOnNewBookArrivedListeners.remove(listener);
-                LogUtils.i(TAG, "Android_Test_Wjc unregisterListener: success");
-            }
-            LogUtils.i(TAG, "Android_Test_Wjc unregisterListener: size=" + mOnNewBookArrivedListeners.size());
+            mOnNewBookArrivedListeners.unregister(listener);
+            int N = mOnNewBookArrivedListeners.beginBroadcast();
+            mOnNewBookArrivedListeners.finishBroadcast();
+            LogUtils.i(TAG, "Android_Test_Wjc register Listener: N=" + N);
         }
     };
 
@@ -60,8 +62,9 @@ public class BookManagerService extends Service {
     public void onCreate() {
         super.onCreate();
         mBooks.add(new Book(1, "android"));
-        mBooks.add(new Book(2, "jave"));
-        new Thread(new ServiceWorker()).start();
+        LogUtils.i(TAG, "Android_Test_Wjc onCreate: currentThread=" + Thread.currentThread());
+        // mBooks.add(new Book(2, "jave"));
+         new Thread(new ServiceWorker()).start();
     }
 
     @Override
@@ -78,11 +81,19 @@ public class BookManagerService extends Service {
 
     private void notifyNewBookArrived(Book book) throws RemoteException {
         mBooks.add(book);
-        for (int i = 0; i < mOnNewBookArrivedListeners.size(); i++) {
-            LogUtils.i(TAG, "Android_Test_Wjc notifyNewBookArrived: ");
-            IOnNewBookArrivedListener listener = mOnNewBookArrivedListeners.get(i);
-            listener.onNewBookArrived(book);
+        final int N = mOnNewBookArrivedListeners.beginBroadcast();
+        LogUtils.i(TAG, "Android_Test_Wjc notifyNewBookArrived: N=" + N);
+        for (int i = 0; i < N; i++) {
+            IOnNewBookArrivedListener listener = mOnNewBookArrivedListeners.getBroadcastItem(i);
+            if (listener != null) {
+                try {
+                    listener.onNewBookArrived(book);
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+            }
         }
+        mOnNewBookArrivedListeners.finishBroadcast();
     }
 
     private class ServiceWorker implements Runnable {
