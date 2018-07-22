@@ -17,6 +17,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "GuangZhouFC MainActivity";
 
     private static final int MESSAGE_NEW_BOOK_ARRIVED = 1;
+    private IBinder.DeathRecipient mdeath;
 
     private Handler mHandler = new Handler() {
         @Override
@@ -41,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
                 List<Book> list = bookManager.getBookList();
                 LogUtils.i(TAG, "Android_Test_Wjc onServiceConnected: list=" + list.toString());
                 bookManager.registerListener(mIOnNewBookArrivedListener);
+                service.linkToDeath(mdeath, 0);
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
@@ -52,12 +54,19 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Intent intent = new Intent(this, BookManagerService.class);
         bindService(intent, mServiceConnection, Context.BIND_AUTO_CREATE);
+        mdeath = new IBinder.DeathRecipient() {
+            @Override
+            public void binderDied() {
+                LogUtils.i(TAG, "Android_Test_Wjc binderDied: ");
+            }
+        };
     }
 
     @Override
@@ -80,4 +89,6 @@ public class MainActivity extends AppCompatActivity {
             mHandler.obtainMessage(MESSAGE_NEW_BOOK_ARRIVED, newBook).sendToTarget();
         }
     };
+
+
 }
